@@ -1,0 +1,28 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build All (Debug)",
+            "type": "shell",
+            "command": "${workspaceFolder}\\build.bat",
+            "args": ["debug"],
+            "group": { "kind": "build", "isDefault": true },
+            "problemMatcher": ["$msCompile"]
+        },
+        {
+            "label": "Build All (Release)",
+            "type": "shell",
+            "command": "${workspaceFolder}\\build.bat",
+            "args": ["release"],
+            "group": { "kind": "build", "isDefault": false },
+            "problemMatcher": ["$msCompile"]
+        },
+        {
+            "label": "clean all",
+            "type": "shell",
+            "command": "${workspaceFolder}\\build.bat",
+            "args": ["clean"],
+            "problemMatcher": []
+        }
+    ]
+}

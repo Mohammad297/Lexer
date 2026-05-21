@@ -1,6 +1,25 @@
 # Prerequisites
 *.d
 
+# Local Build and Output Directories
+build/
+bin/
+lib/
+dist/
+
+# Local Tests
+tests/*.txt
+
+# Compiler Debugging and Incremental Links
+*.ilk
+*.pdb
+*.idb
+vc140.pdb
+
+# Python Cache
+__pycache__/
+*.pyc
+
 # Compiled Object files
 *.slo
 *.lo

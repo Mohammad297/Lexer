@@ -1,0 +1,17 @@
+{
+    "C_Cpp.default.configurationProvider": "ms-vscode.makefile-tools",
+    "files.associations": {
+        "*.ejs": "html",
+        "*.h": "cpp",
+        "*.hpp": "cpp",
+        "atomic": "cpp",
+        "compare": "cpp",
+        "cstddef": "cpp",
+        "limits": "cpp",
+        "memory": "cpp",
+        "type_traits": "cpp",
+        "xmemory": "cpp",
+        "xutility": "cpp",
+        "xstring": "cpp"
+    },
+}

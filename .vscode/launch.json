@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug (Launch Lexer Test)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/debug/lexer_test_debug.exe",
+            "args": [
+                "tests\\keywords_10mil.txt",
+            ],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Build All (Debug)",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Release (Launch Lexer Test)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/release/lexer_test.exe",
+            "args": [
+                "tests\\keywords_10mil.txt",
+            ],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Build All (Release)",
+            "console": "integratedTerminal"
+        }
+    ]
+}

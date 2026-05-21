@@ -1,0 +1,19 @@
+{
+    "configurations": [
+        {
+            "name": "Debug",
+            "tasks": [
+                "build Debug (MSVC)"
+            ],
+            "launch": "Debug System"
+        },
+        {
+            "name": "Release",
+            "tasks": [
+                "build Release (MSVC)"
+            ],
+            "launch": "Release System"
+        }
+    ],
+    "default": "Debug"
+}
