@@ -8,7 +8,7 @@ lib/
 dist/
 
 # Local Tests
-tests/*.txt
+tests/*.*
 
 # Compiler Debugging and Incremental Links
 *.ilk

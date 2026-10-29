@@ -4,12 +4,13 @@
 
 #include "lex\token_stream.hpp"
 #include "lex\engine.hpp"
+#include <fstream>
 
-std::ostream &operator<<(std::ostream &os, const lex::Token &token)
+std::ostream &operator<<(std::ostream &os, const lex::Token &_token)
 {
-    os << "<" << lex::to_string(token.type);
-    if (!token.body.empty())
-        os << ": '" << token.body << "'";
+    os << "<" << lex::to_string(_token.type);
+    if (!_token.body.empty())
+        os << ": '" << _token.body << "'";
     return os << ">";
 }
 
@@ -22,7 +23,7 @@ struct TestCase
     size_t tokenCount;
 };
 
-std::string formatTime(std::chrono::nanoseconds time, unsigned int depth = 2)
+std::string formatTime(std::chrono::nanoseconds _time, unsigned int _depth = 2)
 {
     std::vector<long long> limits{
         3600'000'000'000 * 24 * 7,
@@ -42,13 +43,13 @@ std::string formatTime(std::chrono::nanoseconds time, unsigned int depth = 2)
         "ms",
         "us",
         "ns"};
-    long long nano = time.count();
+    long long nano = _time.count();
 
     std::stringstream out;
 
     for (size_t i = 0; i < limits.size(); i++)
     {
-        if (depth == 0)
+        if (_depth == 0)
             break;
         const auto &limit = limits[i];
         const auto &unit = units[i];
@@ -58,11 +59,11 @@ std::string formatTime(std::chrono::nanoseconds time, unsigned int depth = 2)
             long long whole = nano / limit;
             out << whole << unit;
             nano = nano % limit;
-            depth--;
+            _depth--;
         }
     }
 
-    if (depth > 0)
+    if (_depth > 0)
     {
         out << nano << units.back();
     }
@@ -79,6 +80,7 @@ int main(int argc, char *argv[])
     }
 
     bool doParseTest = false;
+    bool doDumpTokens = false;
     if (argc > 2)
     {
         for (int i = 1; i < argc; i++)
@@ -86,6 +88,8 @@ int main(int argc, char *argv[])
             std::string arg = argv[i];
             if (arg == "-parse")
                 doParseTest = true;
+            if (arg == "-dump-tokens")
+                doDumpTokens = true;
         }
     }
 
@@ -205,30 +209,55 @@ int main(int argc, char *argv[])
         auto duration = endTime - startTime;
         tests.push_back({filename, startTime, endTime, duration, out.tokens.size()});
 
-        std::cout << "Tokens:" << std::endl;
-        if (out.tokens.size() < 50)
-        {
-            for (const auto &token : out.tokens)
-            {
-                std::cout << token << " ";
-            }
-            std::cout << std::endl;
-        }
-        else
-        {
-            for (size_t i = 0; i < 10; i++)
-                std::cout << out.tokens[i] << " ";
-            std::cout << "... " << std::endl;
-            for (size_t i = 0; i < 10; i++)
-                std::cout << out.tokens[out.tokens.size() - 11 + i] << " ";
-            std::cout << std::endl;
-        }
-    }
+        if (doDumpTokens) {
+            std::filesystem::path filepath(filename);
+            std::filesystem::path tkdump_path = filepath.replace_filename(std::format("__tkdump__{}", filepath.filename().string()));
+            std::ofstream output(tkdump_path);
 
-    std::cout << "Tests:" << std::endl;
-    for (const auto &test : tests)
-    {
-        std::cout << "\t" << test.filename << ": \t" << formatTime(test.totalTime) << " \ttokens: " << test.tokenCount << std::endl;
+            if (output.is_open()) {
+                std::cout << "dumping tokens to: " << tkdump_path << std::endl;
+                size_t consequent_body = 1;
+                for (size_t i = 0; i < out.tokens.size(); i++) {
+                    if (i > 1 && out.tokens[i].body == out.tokens[i - 1].body)
+                        consequent_body++;
+                    else if (consequent_body > 1){
+                        output << " x" << consequent_body << std::endl << out.tokens[i];
+                        consequent_body = 1;
+                    }
+                    else {
+                        output << out.tokens[i] << std::endl;;
+                    }
+                }
+            }
+            else {
+                std::cout << "failed to dump tokens to: " << tkdump_path << std::endl;
+            }
+        }
+        else {
+            std::cout << "Tokens:" << std::endl;
+            if (out.tokens.size() < 50)
+            {
+                for (const auto &token : out.tokens)
+                {
+                    std::cout << token << " ";
+                }
+                std::cout << std::endl;
+            }
+            else
+            {
+                for (size_t i = 0; i < 10; i++)
+                    std::cout << out.tokens[i] << " ";
+                std::cout << "... " << std::endl;
+                for (size_t i = 0; i < 10; i++)
+                    std::cout << out.tokens[out.tokens.size() - 11 + i] << " ";
+                std::cout << std::endl;
+            }
+            std::cout << "Tests:" << std::endl;
+            for (const auto &test : tests)
+            {
+                std::cout << "\t" << test.filename << ": \t" << formatTime(test.totalTime) << " \ttokens: " << test.tokenCount << std::endl;
+            }
+        }
     }
     return 0;
 }

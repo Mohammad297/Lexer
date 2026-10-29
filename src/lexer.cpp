@@ -12,35 +12,37 @@ static constexpr size_t TOKEN_COUNT_ESTIMATE = LINE_COUNT_ESTIMATE * TOKEN_PER_L
 static constexpr char COMMENT_DELIMITER = '#';
 static constexpr char COMMENT_TAIL = '-';
 
-lex::Lexer::Lexer(const std::unordered_map<std::string_view, TokenTypeInfo> &reserved)
-    : reserved(reserved)
+lex::Lexer::Lexer(const std::unordered_map<std::string_view, TokenTypeInfo> &_reserved)
+    : reserved(_reserved)
 {
 }
 
-lex::TokenOut lex::Lexer::tokenize(const std::string_view filename)
+lex::TokenOut lex::Lexer::tokenize(const std::filesystem::path &_filename)
 {
     TokenOut out;
-    out.status = dumpFile(filename);
+    out.status = dumpFile(_filename);
 
     if (out.status != LexerStatus::OK)
         return out;
 
+    position.path = &_filename;
+    position.line = 1;
+
     out.tokens.reserve(TOKEN_COUNT_ESTIMATE);
 
-    std::cout << "Unknown tokens: [";
     while (!eof())
     {
         skipNoise();
         if (eof())
             break;
 
-        if (auto identifier = readCompound(checkers::isIdentifierHeader, checkers::isIdentifierBody, IdentifierType::ANY))
+        if (auto identifier = readIdentifier())
         {
             std::string_view body = extractTokenBody();
             if (auto it = reserved.find(body); it != reserved.end())
                 out.tokens.push_back(endToken(it->second.type));
             else
-                out.tokens.push_back(endToken(IdentifierType::ANY));
+                out.tokens.push_back(endToken(IdentifierType::OTHER));
         }
         else if (auto lit = readLiteral())
         {
@@ -56,10 +58,11 @@ lex::TokenOut lex::Lexer::tokenize(const std::string_view filename)
         }
         else
         {
-            std::cout << get();
+            startToken();
+            readWhile(checkers::isNotWhitespace);
+            out.tokens.push_back(endToken(UnknownType::UNKNOWN));
         }
     }
-    std::cout << ']' << std::endl;
 
     out.tokens.push_back({EOFType::_EOF, fileBuffer->content.substr(fileBuffer->content.size() - 1, 0), position});
 
@@ -67,9 +70,9 @@ lex::TokenOut lex::Lexer::tokenize(const std::string_view filename)
     return out;
 }
 
-lex::LexerStatus lex::Lexer::dumpFile(const std::string_view filename)
+lex::LexerStatus lex::Lexer::dumpFile(const std::filesystem::path &_filename)
 {
-    std::ifstream file(std::string(filename), std::ios::binary | std::ios::ate);
+    std::ifstream file(_filename, std::ios::binary | std::ios::ate);
 
     if (!file.is_open())
         return LexerStatus::FAILED_OPEN_FILE;
@@ -78,7 +81,7 @@ lex::LexerStatus lex::Lexer::dumpFile(const std::string_view filename)
     file.seekg(0, std::ios::beg);
 
     fileBuffer = std::make_shared<FileBuffer>();
-    fileBuffer->filename = filename;
+    fileBuffer->filename = _filename;
     fileBuffer->content.assign(size + 1, '\0'); // + 1 for the sentinel
 
     if (!file.read(&fileBuffer->content[0], size))
@@ -91,7 +94,7 @@ lex::LexerStatus lex::Lexer::dumpFile(const std::string_view filename)
 
 bool lex::Lexer::eof() const
 {
-    return cursor >= fileBuffer->content.size();
+    return fileBuffer->content[cursor] == '\0';
 }
 
 char lex::Lexer::get()
@@ -128,16 +131,16 @@ void lex::Lexer::startToken()
     token_start_index = cursor;
 }
 
-lex::Token lex::Lexer::endConsumeToken(TokenType type)
+lex::Token lex::Lexer::endConsumeToken(TokenType _type)
 {
     get();
-    return endToken(type);
+    return endToken(_type);
 }
 
-lex::Token lex::Lexer::endToken(TokenType type) const
+lex::Token lex::Lexer::endToken(TokenType _type) const
 {
     return {
-        type,
+        _type,
         extractTokenBody(),
         {position.path, token_start_line}};
 }
@@ -194,12 +197,12 @@ void lex::Lexer::skipNoise()
     }
 }
 
-bool lex::Lexer::readWhile(std::predicate<unsigned char> auto condition)
+bool lex::Lexer::readWhile(std::predicate<unsigned char> auto _condition)
 {
     while (!eof())
     {
         unsigned char c = static_cast<unsigned char>(peek());
-        if (condition(c))
+        if (_condition(c))
             get();
         else
             return true;
@@ -207,38 +210,39 @@ bool lex::Lexer::readWhile(std::predicate<unsigned char> auto condition)
     return false;
 }
 
-bool lex::Lexer::readIf(std::predicate<unsigned char> auto condition)
+bool lex::Lexer::readIf(std::predicate<unsigned char> auto _condition)
 {
     if (eof())
         return false;
 
     unsigned char c = static_cast<unsigned char>(peek());
-    if (condition(c))
+    if (_condition(c))
     {
         get();
         return true;
     }
+    return false;
 }
 
-bool lex::Lexer::readCompound(std::predicate<unsigned char> auto head_condition, std::predicate<unsigned char> auto tail_condition)
+bool lex::Lexer::readCompound(std::predicate<unsigned char> auto _head_condition, std::predicate<unsigned char> auto _tail_condition)
 {
-    if (eof() || !head_condition(peek()))
+    if (eof() || !_head_condition(peek()))
         return false;
 
     get();
-    readWhile(tail_condition);
+    readWhile(_tail_condition);
     return true;
 }
 
-std::optional<lex::Token> lex::Lexer::readCompound(std::predicate<unsigned char> auto head_condition, std::predicate<unsigned char> auto tail_condition, TokenType type)
+std::optional<lex::Token> lex::Lexer::readCompound(std::predicate<unsigned char> auto _head_condition, std::predicate<unsigned char> auto _tail_condition, TokenType _type)
 {
-    if (eof() || !head_condition(peek()))
+    if (eof() || !_head_condition(peek()))
         return std::nullopt;
 
     startToken();
     get();
-    readWhile(tail_condition);
-    return endToken(type);
+    readWhile(_tail_condition);
+    return endToken(_type);
 }
 
 size_t lex::Lexer::remaining() const
@@ -246,32 +250,37 @@ size_t lex::Lexer::remaining() const
     return fileBuffer->content.size() - cursor;
 }
 
-bool lex::Lexer::hasRemaining(size_t length) const
+bool lex::Lexer::hasRemaining(size_t _length) const
 {
-    return remaining() >= length;
+    return remaining() >= _length;
 }
 
-std::string_view lex::Lexer::peek(size_t length) const
+std::string_view lex::Lexer::peek(size_t _length) const
 {
-    if (hasRemaining(length))
-        return std::string_view(fileBuffer->content).substr(cursor, length);
+    if (hasRemaining(_length))
+        return std::string_view(fileBuffer->content).substr(cursor, _length);
     return std::string_view{};
 }
 
-std::string_view lex::Lexer::get(size_t length)
+std::string_view lex::Lexer::get(size_t _length)
 {
-    std::string_view span = peek(length);
+    std::string_view span = peek(_length);
     if (!span.empty())
-        cursor += length;
+        cursor += _length;
     return span;
 }
 
-bool lex::Lexer::expect(const std::string_view toFind)
+bool lex::Lexer::expect(const std::string_view _toFind)
 {
-    const std::string_view next = get(toFind.length());
+    const std::string_view next = get(_toFind.length());
     if (next.empty())
         return false;
-    return next == toFind;
+    return next == _toFind;
+}
+
+std::optional<lex::Token> lex::Lexer::readIdentifier()
+{
+    return readCompound(checkers::isIdentifierHeader, checkers::isIdentifierBody, IdentifierType::ANY);
 }
 
 std::optional<lex::Token> lex::Lexer::readOperator()
@@ -453,28 +462,45 @@ std::optional<lex::Token> lex::Lexer::readOperator()
 std::optional<lex::Token> lex::Lexer::readDelimiter()
 {
     static constexpr std::string_view operators = "{}[]().,:;";
+
+    static constexpr DelimiterType index_to_enum[] = {
+        DelimiterType::LEFT_BRACE,       
+        DelimiterType::RIGHT_BRACE,      
+        DelimiterType::LEFT_BRACKET,     
+        DelimiterType::RIGHT_BRACKET,    
+        DelimiterType::LEFT_PARENTHESIS, 
+        DelimiterType::RIGHT_PARENTHESIS,
+        DelimiterType::PERIOD,           
+        DelimiterType::COMMA,            
+        DelimiterType::COLON,            
+        DelimiterType::SEMICOLON         
+    };
+
     size_t pos = operators.find(peek());
     if (pos == std::string_view::npos)
         return std::nullopt;
+
     startToken();
     get();
-    return endToken(static_cast<DelimiterType>(pos));
+
+    // Map the position cleanly across the stable lookup buffer in a single cycle
+    return endToken(index_to_enum[pos]);
 }
 
-std::optional<lex::Token> lex::Lexer::readSurroundedLiteral(unsigned char prefix, unsigned char suffix, unsigned char escape, LiteralType type)
+std::optional<lex::Token> lex::Lexer::readSurroundedLiteral(unsigned char _prefix, unsigned char _suffix, unsigned char _escape, LiteralType _type)
 {
-    if (peek() != prefix)
+    if (peek() != _prefix)
         return std::nullopt;
 
     startToken();
     get();
-    while (!eof() && peek() != suffix)
+    while (!eof() && peek() != _suffix)
     {
-        if (get() == escape)
+        if (get() == _escape)
             get();
     }
-    if (peek() == suffix)
-        return endConsumeToken(type);
+    if (peek() == _suffix)
+        return endConsumeToken(_type);
     discardToken();
     return std::nullopt;
 }
@@ -491,7 +517,7 @@ std::optional<lex::Token> lex::Lexer::readCharLiteral()
 
 std::optional<lex::Token> lex::Lexer::readNumericLiteral()
 {
-    if (!std::isdigit(peek()) && peek() != '+' && peek() != '-')
+    if (!checkers::isDigit(peek()) && peek() != '+' && peek() != '-')
         return std::nullopt;
 
     startToken();
@@ -540,14 +566,6 @@ std::optional<lex::Token> lex::Lexer::readNumericLiteral()
     return endToken(LiteralType::UINT);
 }
 
-std::optional<lex::Token> lex::Lexer::readBooleanLiteral()
-{
-    startToken();
-    if (expect("true") || expect("false"))
-        return endToken(LiteralType::BOOL);
-    return std::nullopt;
-}
-
 std::optional<lex::Token> lex::Lexer::readLiteral()
 {
     auto c = readCharLiteral();
@@ -556,9 +574,6 @@ std::optional<lex::Token> lex::Lexer::readLiteral()
     auto s = readStringLiteral();
     if (s)
         return s;
-    // auto b = readBooleanLiteral();
-    // if (b)
-    //     return b;
     auto n = readNumericLiteral();
     if (n)
         return n;

@@ -6,6 +6,7 @@
 #include <memory>
 #include <vector>
 #include <string>
+#include <filesystem>
 
 namespace lex
 {
@@ -18,22 +19,28 @@ namespace lex
 
     struct FileBuffer
     {
-        std::string filename;
+        std::filesystem::path filename;
         std::string content;
     };
 
     enum class TokenCategory : uint8_t
     {
-        IDENTIFIER,
-        LITERAL,
-        OPERATOR,
-        DELIMITER,
-        _EOF,
+        IDENTIFIER = 0b0010'0000,
+        LITERAL = 0b0100'0000,
+        OPERATOR = 0b0110'0000,
+        DELIMITER = 0b1000'0000,
+        UNKNOWN = 0b1010'0000,
+        _EOF = 0b0000'0000,
     };
 
-    inline std::string_view to_string(TokenCategory category)
+    static constexpr uint8_t CATEGORY_MASK =    0b1110'0000;
+    static constexpr uint8_t TYPE_MASK =        0b0001'1111;
+    static_assert((CATEGORY_MASK & TYPE_MASK) == 0, "Overlapping bits in token typing bit layout.");
+    static_assert((CATEGORY_MASK | TYPE_MASK) == UINT8_MAX, "Unused bits in token typing bit layout.");
+
+    inline std::string_view to_string(TokenCategory _category)
     {
-        switch (category)
+        switch (_category)
         {
         case TokenCategory::IDENTIFIER:
             return "identifier";
@@ -43,6 +50,8 @@ namespace lex
             return "operator";
         case TokenCategory::DELIMITER:
             return "delimiter";
+        case TokenCategory::UNKNOWN:
+            return "unknown";
         case TokenCategory::_EOF:
             return "EOF";
         default:
@@ -52,15 +61,15 @@ namespace lex
 
     enum class IdentifierType : uint8_t
     {
-        ANY,
+        ANY = static_cast<uint8_t>(TokenCategory::IDENTIFIER) | 0x01,
         KEYWORD,
         TYPENAME,
         OTHER
     };
 
-    inline std::string_view to_string(IdentifierType type)
+    inline std::string_view to_string(IdentifierType _type)
     {
-        switch (type)
+        switch (_type)
         {
         case IdentifierType::ANY:
             return "any-identifier";
@@ -77,7 +86,7 @@ namespace lex
 
     enum class LiteralType : uint8_t
     {
-        UINT,
+        UINT = static_cast<uint8_t>(TokenCategory::LITERAL) | 0x01,
         INT,
         FLOAT,
         CHAR,
@@ -85,9 +94,9 @@ namespace lex
         BOOL,
     };
 
-    inline std::string_view to_string(LiteralType type)
+    inline std::string_view to_string(LiteralType _type)
     {
-        switch (type)
+        switch (_type)
         {
         case LiteralType::UINT:
             return "uint-literal";
@@ -108,7 +117,7 @@ namespace lex
 
     enum class OperatorType : uint8_t
     {
-        INCREMENT,
+        INCREMENT = static_cast<uint8_t>(TokenCategory::OPERATOR) | 0x01,
         DECREMENT,
         PLUS,
         MINUS,
@@ -146,9 +155,9 @@ namespace lex
         GREATER_THAN_OR_EQUALS
     };
 
-    inline std::string_view to_string(OperatorType type)
+    inline std::string_view to_string(OperatorType _type)
     {
-        switch (type)
+        switch (_type)
         {
         case OperatorType::INCREMENT:
             return "increment";
@@ -229,7 +238,7 @@ namespace lex
 
     enum class DelimiterType : uint8_t
     {
-        LEFT_BRACE,
+        LEFT_BRACE = static_cast<uint8_t>(TokenCategory::DELIMITER) | 0x01,
         RIGHT_BRACE,
         LEFT_BRACKET,
         RIGHT_BRACKET,
@@ -241,9 +250,9 @@ namespace lex
         SEMICOLON
     };
 
-    inline std::string_view to_string(DelimiterType type)
+    inline std::string_view to_string(DelimiterType _type)
     {
-        switch (type)
+        switch (_type)
         {
         case DelimiterType::LEFT_BRACE:
             return "left-brace";
@@ -270,14 +279,30 @@ namespace lex
         }
     }
 
-    enum class EOFType : uint8_t
+    enum class UnknownType : uint8_t
     {
-        _EOF
+        UNKNOWN = static_cast<uint8_t>(TokenCategory::UNKNOWN) | 0x01
     };
 
-    inline std::string_view to_string(EOFType type)
+    inline std::string_view to_string(UnknownType _type)
     {
-        switch (type)
+        switch (_type)
+        {
+        case UnknownType::UNKNOWN:
+            return "unknown";
+        default:
+            return "ERROR";
+        }
+    }
+
+    enum class EOFType : uint8_t
+    {
+        _EOF = static_cast<uint8_t>(TokenCategory::_EOF) | 0x00
+    };
+
+    inline std::string_view to_string(EOFType _type)
+    {
+        switch (_type)
         {
         case EOFType::_EOF:
             return "EOF";
@@ -286,12 +311,18 @@ namespace lex
         }
     }
 
-    using TokenType = std::variant<IdentifierType, LiteralType, OperatorType, DelimiterType, EOFType>;
+    using TokenType = std::variant<IdentifierType, LiteralType, OperatorType, DelimiterType, EOFType, UnknownType>;
 
-    inline std::string_view to_string(const TokenType &type)
+    inline std::string_view to_string(const TokenType &_type)
     {
         return std::visit([](auto &&arg)
-                          { return to_string(arg); }, type);
+                          { return to_string(arg); }, _type);
+    }
+
+    constexpr TokenCategory getCategory(TokenType _type)
+    {
+        return std::visit([](auto &&arg)
+                          { return static_cast<TokenCategory>((static_cast<uint8_t>(arg) & CATEGORY_MASK)); }, _type);
     }
 
     struct TokenTypeInfo
@@ -301,14 +332,14 @@ namespace lex
 
     struct FilePosition
     {
-        const std::string_view path;
+        const std::filesystem::path *path = nullptr;
         int line = 1;
     };
 
     struct Token
     {
         TokenType type;
-        const std::string_view body;
+        std::string_view body;
         FilePosition position;
     };
 
