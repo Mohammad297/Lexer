@@ -4,57 +4,66 @@ A customizable, language-agnostic C++ lexer library.
 
 Can be used to tokenize source code of a custom grammar regardless of language by passing in the reserved symbols with their expected token types. It expects operators and delimiters, and basic literals common in most programming languages.
 
-## Install
+## Build
 
-    git clone https://github.com/Mohammad297/Lexer
+### Installation
 
-### Build
+You can clone this repository:
 
-Run `build.bat release` or `build.bat debug` inside x64 Native Tools Command Prompt (Developer Command Prompt for VS).
+`git clone https://github.com/Mohammad297/Lexer`
 
-Doing _selected-config_ from above will generate:
+### Integration
 
-1. A static `.lib` library in `lib\selected-config` named `lexer.lib`
-2. A test CLI in `bin\selected-config` with the name `lexer_test.exe` and suffix `_debug` for debug builds
-3. Object files and other intermediate files in `build\selected-config`
-   - To clean files produced in **1-3** above, run `build.bat clean`
-   - Files produced in **4-6** are **NOT DELETED** by running `build.bat clean`
-   - `DIST_DIR` is defined in `build.bat` as a target global C++ library directory
+You can use CMake to include this library to your project.
+Using **`FetchContent`** will handle downloading it from this repository.
 
-4. A copy of the public API in `src\` into `DIST_DIR\include\lex`
-5. A copy of the test CLI in `bin\selected-config` into `DIST_DIR\bin`
-6. A copy of the static `.lib` library in `lib\selected-config` into `DIST_DIR\lib\selected-config`
+```cmake
+include(FetchContent)
+
+FetchContent_Declare(
+    remote_lexer
+    GIT_REPOSITORY https://github.com/Mohammad297/Lexer.git
+    GIT_TAG        main # Or use a specific commit hash
+)
+FetchContent_MakeAvailable(remote_lexer)
+
+# Link it to your target (e.g., your parser library or executable)
+target_link_libraries(your_project_target PRIVATE lexer_engine)
+```
+
+Then inside the source code, these public endpoints will be available to be included:
+
+```cpp
+#include <lex/engine.hpp>
+#include <lex/token.hpp>
+#include <lex/token_stream.hpp>
+```
 
 ### Dependencies
 
-The project structure currently only supports compilation with MSVC using VSCode.
-
+- CMake 3.15
 - C++ 20
-- MSVC
-- VSCode
-- Python 3.12+ for test generation using `tests\gen_test.py`
+- Python 3.12 for test generation using `tests\gen_test.py`
 - tqdm Python library for the progress bar
 
 ## Usage
 
-Since it is a utility library, you can either statically link to it, or run tests.
+Since it is a utility library, you can either link to it, or run tests via the provided test `main.cpp`.
 
 ### Testing
 
 Run `python tests\gen_test.py target-file token-count` to generate approximately `token-count` tokens in a pseudo-syntax of a combination of predefined keywords in `target-file`.  
 **Warning:** Doing this will overwrite the contents of any existing file with that name.  
 The generated file's name can be passed as a parameter to the testing CLI.  
-**Example:** `bin\release\lexer_test.exe \tests\keywords_10mil.txt` produces an output like:
+**Example:** `./out/build/x64-release/Lexer/Lexer.exe ./Lexer/tests/all_tokens_10mil.txt` produces an output like:
 
-    File: \tests\keywords_10mil.txt
-    Unknown tokens: []
+    File: ./Lexer/tests/all_tokens_10mil.txt
     Tokens:
-    <keyword: 'default'> <keyword: 'default'> <keyword: 'if'> <keyword: 'switch'> <keyword: 'switch'> <keyword: 'if'> <keyword: 'case'> <keyword: 'switch'> <keyword: 'static'> <keyword: 'while'> ...
-    <keyword: 'continue'> <keyword: 'default'> <keyword: 'while'> <keyword: 'default'> <keyword: 'continue'> <keyword: 'break'> <keyword: 'switch'> <keyword: 'if'> <keyword: 'const'> <keyword: 'const'>
+    <typename: 'uint'> <keyword: 'continue'> <int-literal: '+3'> <minus: '-'> <bool-literal: 'true'> <minus: '-'> <bool-literal: 'true'> <keyword: 'while'> <bool-literal: 'true'> <plus: '+'> ...
+    <keyword: 'break'> <keyword: 'for'> <keyword: 'continue'> <keyword: 'const'> <keyword: 'default'> <int-literal: '+3'> <bitwise-or: '|'> <bool-literal: 'true'> <bitwise-or: '|'> <bool-literal: 'true'>
     Tests:
-    \tests\keywords_10mil.txt: 1s332ms tokens: 10000001
+            ./Lexer/tests/all_tokens_10mil.txt:     1s248ms         tokens: 9221200
 
-Unrecognized tokens are printed between a single pair of square brackets before the other tokens. In this case, no unrecognized tokens.
 Each identified token is in the format of:
 
 - if it has a body: `<type: 'body'>`
@@ -69,7 +78,7 @@ Under the `namespace lex`, the following are available:
 
 ### Public Headers:
 
-- `token.hpp` - Contains definitions of essential lexer definitions, token types and structs, and their `to_string()` functions.
+- `token.hpp` - Contains the essential lexer definitions, token types and structs, and their `to_string()` functions.
 - `engine.hpp` - Contains the `class Engine` that:
   - is constructed with reserved strings via `template <typename Iter> explicit Engine(Iter firstReserved, Iter lastReserved){...}`
   - manages tokenization calls via `TokenOut Engine::processFile(std::string_view filename) const`
