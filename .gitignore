@@ -3,12 +3,17 @@
 
 # Local Build and Output Directories
 build/
+out/
 bin/
 lib/
 dist/
 
+# Visual Studio Directory
+.vs/
+
 # Local Tests
-tests/*.*
+tests/*
+!tests/gen_test.py
 
 # Compiler Debugging and Incremental Links
 *.ilk
