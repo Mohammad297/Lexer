@@ -41,8 +41,13 @@ Then inside the source code, these public endpoints will be available to be incl
 
 ### Dependencies
 
+#### Lexer
+
 - CMake 3.15
 - C++ 20
+
+#### Test Generation
+
 - Python 3.12 for test generation using `tests\gen_test.py`
 - tqdm Python library for the progress bar
 
